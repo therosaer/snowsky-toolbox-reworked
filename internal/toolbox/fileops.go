@@ -29,14 +29,29 @@ type RenameResult struct {
 	Status string
 }
 
+type TransferResult struct {
+	Files           int
+	SkippedSymlinks int
+	SkippedExisting int
+	Destination     string
+}
+
 var unsafeFilename = regexp.MustCompile(`[<>:"/\\|?*\x00-\x1f]`)
 var digits = regexp.MustCompile(`\d+`)
 
 var renameTemplates = map[string]string{
-	"trackno_trackname":    "{track_no}. {title}",
-	"trackno_artist_title": "{track_no}. {artist} - {title}",
-	"artist_title":         "{artist} - {title}",
-	"title_only":           "{title}",
+	"trackno_trackname":               "{track_no}. {title}",
+	"trackno_artist_title":            "{track_no}. {artist} - {title}",
+	"trackno_artist_album_title":      "{track_no}. {artist} - {album} - {title}",
+	"trackno_album_title":             "{track_no}. {album} - {title}",
+	"trackno_dash_title":              "{track_no} - {title}",
+	"trackno_dash_artist_title":       "{track_no} - {artist} - {title}",
+	"trackno_dash_artist_album_title": "{track_no} - {artist} - {album} - {title}",
+	"artist_title":                    "{artist} - {title}",
+	"artist_album_title":              "{artist} - {album} - {title}",
+	"album_title":                     "{album} - {title}",
+	"artist_trackno_title":            "{artist} - {track_no}. {title}",
+	"title_only":                      "{title}",
 }
 
 func Backup(source, destination string) (BackupResult, error) {
@@ -48,11 +63,11 @@ func Backup(source, destination string) (BackupResult, error) {
 	if err != nil {
 		return BackupResult{}, err
 	}
-	info, err := os.Stat(sourceAbs)
+	info, err := os.Lstat(sourceAbs)
 	if err != nil {
 		return BackupResult{}, err
 	}
-	if !info.IsDir() {
+	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return BackupResult{}, fmt.Errorf("%s is not a directory", source)
 	}
 	if pathWithin(destinationAbs, sourceAbs) {
@@ -150,16 +165,127 @@ func Backup(source, destination string) (BackupResult, error) {
 	return result, nil
 }
 
+func Transfer(source, destination, mode string, apply bool) (TransferResult, error) {
+	sourceAbs, err := filepath.Abs(source)
+	if err != nil {
+		return TransferResult{}, err
+	}
+	destinationAbs, err := filepath.Abs(destination)
+	if err != nil {
+		return TransferResult{}, err
+	}
+	if mode != "copy" && mode != "move" {
+		return TransferResult{}, fmt.Errorf("mode must be copy or move")
+	}
+	sourceInfo, err := os.Lstat(sourceAbs)
+	if err != nil {
+		return TransferResult{}, err
+	}
+	if !sourceInfo.IsDir() || sourceInfo.Mode()&os.ModeSymlink != 0 {
+		return TransferResult{}, fmt.Errorf("source must be a regular directory")
+	}
+	if pathWithin(destinationAbs, sourceAbs) || pathWithin(sourceAbs, destinationAbs) {
+		return TransferResult{}, fmt.Errorf("source and destination must be separate folders")
+	}
+	if info, err := os.Lstat(destinationAbs); err == nil && !info.IsDir() {
+		return TransferResult{}, fmt.Errorf("destination exists and is not a directory")
+	} else if err != nil && !os.IsNotExist(err) {
+		return TransferResult{}, err
+	}
+	result := TransferResult{Destination: destinationAbs}
+	var files []string
+	var directories []string
+	err = filepath.WalkDir(sourceAbs, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if path == sourceAbs {
+			return nil
+		}
+		if entry.IsDir() {
+			if isSystemFolder(entry.Name()) {
+				return filepath.SkipDir
+			}
+			directories = append(directories, path)
+			return nil
+		}
+		if entry.Type()&os.ModeSymlink != 0 {
+			result.SkippedSymlinks++
+			return nil
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		if info.Mode().IsRegular() {
+			files = append(files, path)
+		}
+		return nil
+	})
+	if err != nil {
+		return result, err
+	}
+	for _, path := range files {
+		rel, _ := filepath.Rel(sourceAbs, path)
+		target := filepath.Join(destinationAbs, rel)
+		if _, err := os.Lstat(target); err == nil {
+			result.SkippedExisting++
+		} else if !os.IsNotExist(err) {
+			return result, err
+		} else {
+			result.Files++
+		}
+	}
+	if !apply {
+		return result, nil
+	}
+	if err := os.MkdirAll(destinationAbs, 0o755); err != nil {
+		return result, err
+	}
+	for _, dir := range directories {
+		rel, _ := filepath.Rel(sourceAbs, dir)
+		if err := os.MkdirAll(filepath.Join(destinationAbs, rel), 0o755); err != nil {
+			return result, err
+		}
+	}
+	var copied []string
+	for _, path := range files {
+		rel, _ := filepath.Rel(sourceAbs, path)
+		target := filepath.Join(destinationAbs, rel)
+		if _, err := os.Lstat(target); err == nil {
+			continue
+		} else if !os.IsNotExist(err) {
+			return result, err
+		}
+		if err := copyFile(path, target); err != nil {
+			return result, err
+		}
+		copied = append(copied, path)
+	}
+	if mode == "move" {
+		for _, path := range copied {
+			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+				return result, err
+			}
+		}
+		for i := len(directories) - 1; i >= 0; i-- {
+			_ = os.Remove(directories[i])
+		}
+		_ = os.Remove(sourceAbs)
+	}
+	return result, nil
+}
+
 func Cleanup(root string, apply bool) (CleanupResult, error) {
 	rootAbs, err := filepath.Abs(root)
 	if err != nil {
 		return CleanupResult{}, err
 	}
-	info, err := os.Stat(rootAbs)
+	info, err := os.Lstat(rootAbs)
 	if err != nil {
 		return CleanupResult{}, err
 	}
-	if !info.IsDir() {
+	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return CleanupResult{}, fmt.Errorf("%s is not a directory", root)
 	}
 	result := CleanupResult{Paths: []string{}}
@@ -265,7 +391,7 @@ func Rename(root, preset string, apply bool) ([]RenameResult, error) {
 		case "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9":
 			name = "_" + name
 		}
-		target := filepath.Join(filepath.Dir(track.Path), name+track.Extension)
+		target := filepath.Join(filepath.Dir(track.Path), name+filepath.Ext(track.Filename))
 		if filepath.Clean(target) == filepath.Clean(track.Path) {
 			results = append(results, RenameResult{From: track.RelativePath, To: filepath.Base(target), Status: "MATCHING"})
 			continue
@@ -317,6 +443,59 @@ func parseTrackNumber(raw string) string {
 }
 
 func pathWithin(candidate, root string) bool {
+	candidate = resolvePath(candidate)
+	root = resolvePath(root)
 	rel, err := filepath.Rel(root, candidate)
 	return err == nil && (rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))))
+}
+
+func resolvePath(path string) string {
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return filepath.Clean(path)
+	}
+	absolute = filepath.Clean(absolute)
+	current := absolute
+	var missing []string
+	for {
+		resolved, err := filepath.EvalSymlinks(current)
+		if err == nil {
+			for i := len(missing) - 1; i >= 0; i-- {
+				resolved = filepath.Join(resolved, missing[i])
+			}
+			return filepath.Clean(resolved)
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			return absolute
+		}
+		missing = append(missing, filepath.Base(current))
+		current = parent
+	}
+}
+
+func replaceFile(replacement, target string) error {
+	previous, err := os.CreateTemp(filepath.Dir(target), ".snowsky-previous-*")
+	if err != nil {
+		return err
+	}
+	previousPath := previous.Name()
+	if err := previous.Close(); err != nil {
+		_ = os.Remove(previousPath)
+		return err
+	}
+	if err := os.Remove(previousPath); err != nil {
+		return err
+	}
+	if err := os.Rename(target, previousPath); err != nil {
+		return err
+	}
+	if err := os.Rename(replacement, target); err != nil {
+		restoreErr := os.Rename(previousPath, target)
+		if restoreErr != nil {
+			return fmt.Errorf("replace failed: %v; restore original failed: %w", err, restoreErr)
+		}
+		return err
+	}
+	return os.Remove(previousPath)
 }

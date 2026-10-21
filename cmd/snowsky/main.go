@@ -21,13 +21,15 @@ func main() {
 
 func run(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: snowsky <scan|backup|cleanup|rename|convert|lyrics> [options]")
+		return errors.New("usage: snowsky <scan|backup|transfer|cleanup|rename|convert|lyrics|metadata|art|workflow> [options]")
 	}
 	switch args[0] {
 	case "scan":
 		return runScan(args[1:])
 	case "backup":
 		return runBackup(args[1:])
+	case "transfer":
+		return runTransfer(args[1:])
 	case "cleanup":
 		return runCleanup(args[1:])
 	case "rename":
@@ -36,12 +38,46 @@ func run(args []string) error {
 		return runConvert(args[1:])
 	case "lyrics":
 		return runLyrics(args[1:])
+	case "metadata":
+		return runMetadata(args[1:])
+	case "art":
+		return runArtwork(args[1:])
+	case "workflow":
+		return runWorkflow(args[1:])
 	case "help", "-h", "--help":
-		fmt.Println("Snowsky Echo Mini Toolbox (CLI)\n\nCommands: scan, backup, cleanup, rename, convert, lyrics")
+		fmt.Println("Snowsky Echo Mini Toolbox (CLI)\n\nCommands: scan, backup, transfer, cleanup, rename, convert, lyrics, metadata, art, workflow")
 		return nil
 	default:
 		return fmt.Errorf("unknown command %q; run snowsky help", args[0])
 	}
+}
+
+func runTransfer(args []string) error {
+	if len(args) == 0 || (args[0] != "copy" && args[0] != "move") {
+		return errors.New("usage: snowsky transfer <copy|move> [--apply] <source-folder> <destination-folder>")
+	}
+	mode := args[0]
+	flags := flag.NewFlagSet("transfer "+mode, flag.ContinueOnError)
+	apply := flags.Bool("apply", false, "perform the transfer (default is a dry run)")
+	if err := flags.Parse(args[1:]); err != nil {
+		return err
+	}
+	if flags.NArg() != 2 {
+		return errors.New("usage: snowsky transfer <copy|move> [--apply] <source-folder> <destination-folder>")
+	}
+	result, err := toolbox.Transfer(flags.Arg(0), flags.Arg(1), mode, *apply)
+	if err != nil {
+		return err
+	}
+	verb := "Would copy"
+	if *apply {
+		verb = "Copied"
+		if mode == "move" {
+			verb = "Moved"
+		}
+	}
+	fmt.Printf("%s %d files to %s (skipped %d existing files, %d symlinks)\n", verb, result.Files, result.Destination, result.SkippedExisting, result.SkippedSymlinks)
+	return nil
 }
 
 func runScan(args []string) error {
@@ -153,6 +189,120 @@ func runConvert(args []string) error {
 	return nil
 }
 
+func runArtwork(args []string) error {
+	if len(args) == 0 {
+		return errors.New("usage: snowsky art <inspect|fix|download> ...")
+	}
+	switch args[0] {
+	case "inspect":
+		if len(args) != 2 {
+			return errors.New("usage: snowsky art inspect <folder>")
+		}
+		results, err := toolbox.InspectArtwork(args[1])
+		if err != nil {
+			return err
+		}
+		for _, result := range results {
+			fmt.Printf("%-12s %4dx%-4d %s", result.Status, result.Width, result.Height, result.Path)
+			if result.Reason != "" {
+				fmt.Printf(" — %s", result.Reason)
+			}
+			fmt.Println()
+		}
+		return nil
+	case "fix":
+		flags := flag.NewFlagSet("art fix", flag.ContinueOnError)
+		apply := flags.Bool("apply", false, "fix artwork (default is a dry run)")
+		backupDir := flags.String("backup-dir", "", "copy original files here before fixing")
+		if err := flags.Parse(args[1:]); err != nil {
+			return err
+		}
+		if flags.NArg() != 1 {
+			return errors.New("usage: snowsky art fix [--apply --backup-dir folder] <folder>")
+		}
+		results, err := toolbox.FixArtwork(flags.Arg(0), *apply, *backupDir)
+		if err != nil {
+			return err
+		}
+		for _, result := range results {
+			fmt.Printf("%-12s %s", result.Status, result.Path)
+			if result.Reason != "" {
+				fmt.Printf(" — %s", result.Reason)
+			}
+			fmt.Println()
+		}
+		return nil
+	case "download":
+		flags := flag.NewFlagSet("art download", flag.ContinueOnError)
+		apply := flags.Bool("apply", false, "embed the downloaded artwork")
+		artist := flags.String("artist", "", "album artist")
+		album := flags.String("album", "", "album title")
+		backupDir := flags.String("backup-dir", "", "copy original file here before embedding")
+		if err := flags.Parse(args[1:]); err != nil {
+			return err
+		}
+		if flags.NArg() != 1 {
+			return errors.New("usage: snowsky art download --artist name --album title [--apply --backup-dir folder] <audio-file>")
+		}
+		message, err := toolbox.DownloadArtwork(flags.Arg(0), *artist, *album, *backupDir, *apply)
+		if err != nil {
+			return err
+		}
+		fmt.Println(message)
+		return nil
+	default:
+		return fmt.Errorf("unknown artwork command %q", args[0])
+	}
+}
+
+func runMetadata(args []string) error {
+	if len(args) == 0 {
+		return errors.New("usage: snowsky metadata <list|set|remove|sanitize> ...")
+	}
+	switch args[0] {
+	case "list":
+		if len(args) != 2 {
+			return errors.New("usage: snowsky metadata list <audio-file>")
+		}
+		return toolbox.ListMetadata(args[1])
+	case "set", "remove", "sanitize":
+		flags := flag.NewFlagSet("metadata "+args[0], flag.ContinueOnError)
+		apply := flags.Bool("apply", false, "write metadata changes (default is a dry run)")
+		backup := flags.String("backup", "", "copy the original file to this path before writing")
+		if err := flags.Parse(args[1:]); err != nil {
+			return err
+		}
+		if flags.NArg() < 1 || (args[0] == "set" && flags.NArg() != 3) ||
+			(args[0] == "remove" && flags.NArg() != 2) || (args[0] == "sanitize" && flags.NArg() != 1) {
+			return fmt.Errorf("usage: snowsky metadata %s [--apply] [--backup path] <audio-file> [key [value]]", args[0])
+		}
+		file := flags.Arg(0)
+		var key, value string
+		if args[0] == "set" {
+			key, value = flags.Arg(1), flags.Arg(2)
+		} else if args[0] == "remove" {
+			key = flags.Arg(1)
+		}
+		return toolbox.EditMetadata(file, args[0], key, value, *apply, *backup)
+	default:
+		return fmt.Errorf("unknown metadata command %q", args[0])
+	}
+}
+
+func runWorkflow(args []string) error {
+	if len(args) == 0 || args[0] != "run" {
+		return errors.New("usage: snowsky workflow run [--apply] <workflow.json> <target-folder>")
+	}
+	flags := flag.NewFlagSet("workflow", flag.ContinueOnError)
+	apply := flags.Bool("apply", false, "perform mutating steps (default is a dry run)")
+	if err := flags.Parse(args[1:]); err != nil {
+		return err
+	}
+	if flags.NArg() != 2 {
+		return errors.New("usage: snowsky workflow run [--apply] <workflow.json> <target-folder>")
+	}
+	return toolbox.RunWorkflow(flags.Arg(0), flags.Arg(1), *apply)
+}
 func runLyrics(args []string) error {
 	if len(args) == 0 {
 		return errors.New("usage: snowsky lyrics <extract|lookup> ...")

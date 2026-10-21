@@ -115,9 +115,44 @@ func Convert(root string, eqCompatible, apply bool, backupDir string) ([]Convert
 			results = append(results, ConvertResult{Path: track.RelativePath, Message: "conversion failed: " + message})
 			continue
 		}
+		if track.HasArtwork {
+			imageData, err := extractArtwork(track.Path)
+			if err != nil {
+				_ = os.Remove(tempPath)
+				results = append(results, ConvertResult{Path: track.RelativePath, Message: "could not preserve embedded artwork: " + err.Error()})
+				continue
+			}
+			imageFile, err := os.CreateTemp(filepath.Dir(track.Path), ".snowsky-preserved-cover-*.img")
+			if err != nil {
+				_ = os.Remove(tempPath)
+				results = append(results, ConvertResult{Path: track.RelativePath, Message: "could not preserve embedded artwork: " + err.Error()})
+				continue
+			}
+			imagePath := imageFile.Name()
+			if _, err := imageFile.Write(imageData); err != nil {
+				imageFile.Close()
+				_ = os.Remove(imagePath)
+				_ = os.Remove(tempPath)
+				results = append(results, ConvertResult{Path: track.RelativePath, Message: "could not preserve embedded artwork: " + err.Error()})
+				continue
+			}
+			if err := imageFile.Close(); err != nil {
+				_ = os.Remove(imagePath)
+				_ = os.Remove(tempPath)
+				results = append(results, ConvertResult{Path: track.RelativePath, Message: "could not preserve embedded artwork: " + err.Error()})
+				continue
+			}
+			err = embedJPEG(ffmpeg, tempPath, imagePath)
+			_ = os.Remove(imagePath)
+			if err != nil {
+				_ = os.Remove(tempPath)
+				results = append(results, ConvertResult{Path: track.RelativePath, Message: "could not preserve embedded artwork: " + err.Error()})
+				continue
+			}
+		}
 		installErr := error(nil)
 		if output == track.Path {
-			installErr = os.Rename(tempPath, output)
+			installErr = replaceFile(tempPath, output)
 		} else {
 			installErr = os.Link(tempPath, output)
 			if installErr == nil {
@@ -162,5 +197,9 @@ func copyFile(source, destination string) error {
 		_ = os.Remove(destination)
 		return err
 	}
-	return output.Close()
+	if err := output.Close(); err != nil {
+		_ = os.Remove(destination)
+		return err
+	}
+	return nil
 }

@@ -3,7 +3,6 @@ package toolbox
 import (
 	"path/filepath"
 	"strings"
-	"unicode"
 )
 
 func EvaluateCompatibility(track Track) Compatibility {
@@ -67,16 +66,23 @@ func codecMatchesExtension(ext, codec string) bool {
 
 func filenameIncompatibility(name string) string {
 	for _, r := range name {
-		if unicode.Is(unicode.So, r) || unicode.Is(unicode.Sk, r) {
+		if r >= 0x1f300 && r <= 0x1f64f ||
+			r >= 0x1f680 && r <= 0x1f6ff ||
+			r >= 0x1f900 && r <= 0x1f9ff ||
+			r >= 0x1fa70 && r <= 0x1faff ||
+			r >= 0x2600 && r <= 0x26ff ||
+			r >= 0x2700 && r <= 0x27bf {
 			return "Filename contains emoji or unsupported pictographic symbols"
 		}
 		switch {
-		case r >= 0x0900 && r <= 0x0DFF:
+		case r >= 0x0900 && r <= 0x097f,
+			r >= 0x0980 && r <= 0x09ff,
+			r >= 0x1780 && r <= 0x17ff,
+			r >= 0x19e0 && r <= 0x19ff,
+			r >= 0x1000 && r <= 0x109f,
+			r >= 0xaa60 && r <= 0xaa7f,
+			r >= 0xa9e0 && r <= 0xa9ff:
 			return "Filename contains a complex script not supported visually by the device"
-		case r >= 0x1780 && r <= 0x17FF:
-			return "Filename contains Khmer characters not supported visually by the device"
-		case r >= 0x1000 && r <= 0x109F:
-			return "Filename contains Burmese characters not supported visually by the device"
 		}
 	}
 	return ""

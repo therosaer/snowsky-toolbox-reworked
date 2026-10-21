@@ -35,6 +35,10 @@ type Track struct {
 	Channels      int               `json:"channels,omitempty"`
 	BitsPerSample int               `json:"bits_per_sample,omitempty"`
 	Codec         string            `json:"codec,omitempty"`
+	HasArtwork    bool              `json:"has_artwork"`
+	ArtworkCodec  string            `json:"artwork_codec,omitempty"`
+	ArtworkWidth  int               `json:"artwork_width,omitempty"`
+	ArtworkHeight int               `json:"artwork_height,omitempty"`
 	Title         string            `json:"title,omitempty"`
 	Artist        string            `json:"artist,omitempty"`
 	Album         string            `json:"album,omitempty"`
@@ -55,13 +59,18 @@ type probeResult struct {
 		Tags     map[string]string `json:"tags"`
 	} `json:"format"`
 	Streams []struct {
-		CodecType     string            `json:"codec_type"`
-		CodecName     string            `json:"codec_name"`
-		SampleRate    string            `json:"sample_rate"`
-		Channels      int               `json:"channels"`
-		BitsPerSample int               `json:"bits_per_sample"`
-		BitsRaw       int               `json:"bits_per_raw_sample"`
-		Tags          map[string]string `json:"tags"`
+		CodecType     string `json:"codec_type"`
+		CodecName     string `json:"codec_name"`
+		SampleRate    string `json:"sample_rate"`
+		Channels      int    `json:"channels"`
+		BitsPerSample int    `json:"bits_per_sample"`
+		BitsRaw       int    `json:"bits_per_raw_sample"`
+		Width         int    `json:"width"`
+		Height        int    `json:"height"`
+		Disposition   struct {
+			AttachedPicture int `json:"attached_pic"`
+		} `json:"disposition"`
+		Tags map[string]string `json:"tags"`
 	} `json:"streams"`
 }
 
@@ -70,11 +79,11 @@ func Scan(root string) (ScanResult, error) {
 	if err != nil {
 		return ScanResult{}, err
 	}
-	info, err := os.Stat(absRoot)
+	info, err := os.Lstat(absRoot)
 	if err != nil {
 		return ScanResult{}, err
 	}
-	if !info.IsDir() {
+	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return ScanResult{}, fmt.Errorf("%s is not a directory", root)
 	}
 	result := ScanResult{Root: absRoot, Tracks: []Track{}}
@@ -147,10 +156,21 @@ func probe(path string) (probeResult, error) {
 
 func mergeProbe(track Track, data probeResult) Track {
 	track.Tags = mergeTags(data.Format.Tags)
+	audioFound := false
 	for _, stream := range data.Streams {
 		if stream.CodecType != "audio" {
+			if stream.Disposition.AttachedPicture == 1 {
+				track.HasArtwork = true
+				track.ArtworkCodec = strings.ToLower(stream.CodecName)
+				track.ArtworkWidth = stream.Width
+				track.ArtworkHeight = stream.Height
+			}
 			continue
 		}
+		if audioFound {
+			continue
+		}
+		audioFound = true
 		track.Codec = strings.ToLower(stream.CodecName)
 		track.SampleRate, _ = strconv.Atoi(stream.SampleRate)
 		track.Channels = stream.Channels
@@ -160,7 +180,6 @@ func mergeProbe(track Track, data probeResult) Track {
 			track.BitsPerSample = stream.BitsPerSample
 		}
 		track.Tags = mergeTags(track.Tags, stream.Tags)
-		break
 	}
 	track.Duration, _ = strconv.ParseFloat(data.Format.Duration, 64)
 	bitrate, _ := strconv.Atoi(data.Format.BitRate)

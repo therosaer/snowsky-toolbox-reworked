@@ -247,10 +247,14 @@ func writeLyrics(path, lyrics string) error {
 
 func previewText(text string, max int) string {
 	text = strings.TrimSpace(strings.SplitN(text, "\n", 2)[0])
-	if len(text) <= max {
+	runes := []rune(text)
+	if len(runes) <= max {
 		return text
 	}
-	return text[:max-3] + "..."
+	if max <= 3 {
+		return string(runes[:max])
+	}
+	return string(runes[:max-3]) + "..."
 }
 
 func abs(value int) int {

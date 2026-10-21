@@ -87,6 +87,38 @@ The `v2` rewrite is being rebuilt tab by tab. Everything below already ships in 
 
 The findings behind those rules, gathered by reverse-engineering the device firmware, are in [SNOWSKY-FIRMWARE.md](SNOWSKY-FIRMWARE.md).
 
+## Go CLI (GUI-free port)
+
+The repository now also contains a Go command-line port of the core library operations. The existing Python GUI remains available; the Go CLI does not launch or depend on Qt.
+
+**Requirements:** Go 1.24 or newer, with `ffmpeg` and `ffprobe` on `PATH` for audio inspection, metadata edits, conversion, and artwork operations.
+
+Build and show the available commands:
+
+```bash
+go build -o snowsky ./cmd/snowsky
+./snowsky help
+```
+
+Examples:
+
+```bash
+./snowsky scan --json /path/to/music
+./snowsky backup /path/to/music /path/to/music-backup.zip
+./snowsky transfer copy /path/to/music /path/to/backup/music
+./snowsky cleanup /path/to/music
+./snowsky rename --preset trackno_artist_title /path/to/music
+./snowsky convert --eq /path/to/music
+./snowsky lyrics extract /path/to/music
+./snowsky metadata list /path/to/music/track.mp3
+./snowsky art inspect /path/to/music
+./snowsky workflow run workflow.json /path/to/music
+```
+
+File edits and transfers are dry runs unless `--apply` is supplied. ZIP backup writes the requested archive immediately. Keep a separate copy of your library before applying changes; `convert`, `metadata`, `art fix`, and `art download` accept backup options, and artwork changes require a backup directory. Network access is used only by `lyrics lookup` and `art download`.
+
+The Go port is still being expanded. It currently supports scanning and compatibility reporting, ZIP backup, copy/move, cleanup, metadata-based renaming, FFmpeg conversion, metadata listing/editing/sanitization, embedded artwork inspection/fixing/download, LRC extraction and LRCLIB lookup, and JSON workflow execution. The CLI intentionally does not include UI features such as drive ejection, interactive lyrics review, or GUI tables/dialogs.
+
 ## Troubleshooting
 
 ### macOS first launch
