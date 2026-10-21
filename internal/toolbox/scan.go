@@ -18,9 +18,9 @@ var supportedExtensions = map[string]bool{
 }
 
 type ScanResult struct {
-	Root      string  `json:"root"`
-	TotalBytes int64  `json:"total_bytes"`
-	Tracks    []Track `json:"tracks"`
+	Root       string  `json:"root"`
+	TotalBytes int64   `json:"total_bytes"`
+	Tracks     []Track `json:"tracks"`
 }
 
 type Track struct {
