@@ -93,6 +93,8 @@ The repository now also contains a Go command-line port of the core library oper
 
 **Requirements:** Go 1.24 or newer, with `ffmpeg` and `ffprobe` on `PATH` for audio inspection, metadata edits, conversion, and artwork operations.
 
+Library scans probe audio files concurrently (up to 8 workers by default, while preserving result order). Set `SNOWSKY_PROBE_WORKERS` to tune parallelism for fast local disks or slower removable drives.
+
 Build and show the available commands:
 
 ```bash

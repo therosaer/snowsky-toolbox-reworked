@@ -6,8 +6,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 var supportedExtensions = map[string]bool{
@@ -121,19 +123,21 @@ func Scan(root string) (ScanResult, error) {
 			Compatibility: Compatibility{Status: "UNKNOWN"},
 		}
 		result.TotalBytes += track.SizeBytes
-		if ext != ".lrc" && ext != ".cue" {
-			if probed, err := probe(path); err == nil {
-				track = mergeProbe(track, probed)
-				track.Compatibility = EvaluateCompatibility(track)
-			} else {
-				track.Compatibility = Compatibility{Status: "UNKNOWN", Reason: err.Error()}
-			}
-		}
 		result.Tracks = append(result.Tracks, track)
 		return nil
 	})
 	if err != nil {
 		return ScanResult{}, err
+	}
+	if len(result.Tracks) > 0 {
+		executable, lookupErr := exec.LookPath("ffprobe")
+		probeTrack := func(path string) (probeResult, error) {
+			if lookupErr != nil {
+				return probeResult{}, fmt.Errorf("ffprobe is required to inspect audio files")
+			}
+			return probeWithExecutable(executable, path)
+		}
+		analyzeTracks(result.Tracks, scanWorkerCount(len(result.Tracks)), probeTrack)
 	}
 	return result, nil
 }
@@ -143,6 +147,10 @@ func probe(path string) (probeResult, error) {
 	if err != nil {
 		return probeResult{}, fmt.Errorf("ffprobe is required to inspect audio files")
 	}
+	return probeWithExecutable(executable, path)
+}
+
+func probeWithExecutable(executable, path string) (probeResult, error) {
 	output, err := exec.Command(executable, "-v", "error", "-show_format", "-show_streams", "-of", "json", path).Output()
 	if err != nil {
 		return probeResult{}, fmt.Errorf("ffprobe: %w", err)
@@ -152,6 +160,70 @@ func probe(path string) (probeResult, error) {
 		return probeResult{}, fmt.Errorf("parse ffprobe output: %w", err)
 	}
 	return result, nil
+}
+
+type trackProbe func(string) (probeResult, error)
+
+func scanWorkerCount(items int) int {
+	if items <= 0 {
+		return 0
+	}
+	workers := runtime.NumCPU()
+	if workers > 8 {
+		workers = 8
+	}
+	if configured := strings.TrimSpace(os.Getenv("SNOWSKY_PROBE_WORKERS")); configured != "" {
+		if value, err := strconv.Atoi(configured); err == nil && value > 0 {
+			workers = value
+		}
+	}
+	if workers > 32 {
+		workers = 32
+	}
+	if workers > items {
+		workers = items
+	}
+	if workers < 1 {
+		return 1
+	}
+	return workers
+}
+
+func analyzeTracks(tracks []Track, workers int, probeFile trackProbe) {
+	if workers > len(tracks) {
+		workers = len(tracks)
+	}
+	if workers < 1 {
+		return
+	}
+	jobs := make(chan int)
+	var group sync.WaitGroup
+	group.Add(workers)
+	for range workers {
+		go func() {
+			defer group.Done()
+			for index := range jobs {
+				track := tracks[index]
+				if track.Extension == ".lrc" || track.Extension == ".cue" {
+					continue
+				}
+				probed, err := probeFile(track.Path)
+				if err != nil {
+					track.Compatibility = Compatibility{Status: "UNKNOWN", Reason: err.Error()}
+					tracks[index] = track
+					continue
+				}
+				track = mergeProbe(track, probed)
+				track.Compatibility = EvaluateCompatibility(track)
+				tracks[index] = track
+			}
+		}()
+	}
+	for index := range tracks {
+		jobs <- index
+	}
+	close(jobs)
+	group.Wait()
 }
 
 func mergeProbe(track Track, data probeResult) Track {

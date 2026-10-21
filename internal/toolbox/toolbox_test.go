@@ -2,9 +2,12 @@ package toolbox
 
 import (
 	"archive/zip"
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestEvaluateCompatibility(t *testing.T) {
@@ -147,5 +150,57 @@ func TestJPEGScanType(t *testing.T) {
 	}
 	if jpegIsProgressive(baseline) {
 		t.Fatal("baseline JPEG was incorrectly marked progressive")
+	}
+}
+
+func TestAnalyzeTracksUsesBoundedWorkersAndKeepsOrder(t *testing.T) {
+	tracks := []Track{
+		{Path: "first.mp3", Extension: ".mp3", Compatibility: Compatibility{Status: "UNKNOWN"}},
+		{Path: "skip.lrc", Extension: ".lrc", Compatibility: Compatibility{Status: "UNKNOWN"}},
+		{Path: "second.mp3", Extension: ".mp3", Compatibility: Compatibility{Status: "UNKNOWN"}},
+		{Path: "third.mp3", Extension: ".mp3", Compatibility: Compatibility{Status: "UNKNOWN"}},
+	}
+	var active, maximum atomic.Int32
+	probe := func(path string) (probeResult, error) {
+		current := active.Add(1)
+		for {
+			previous := maximum.Load()
+			if current <= previous || maximum.CompareAndSwap(previous, current) {
+				break
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+		active.Add(-1)
+		data := probeResult{}
+		err := json.Unmarshal([]byte(`{"format":{"tags":{"title":"`+filepath.Base(path)+`"}},"streams":[{"codec_type":"audio","codec_name":"mp3","sample_rate":"44100","channels":2}]}`), &data)
+		return data, err
+	}
+	analyzeTracks(tracks, 2, probe)
+	if got := maximum.Load(); got != 2 {
+		t.Fatalf("maximum concurrent probes = %d, want 2", got)
+	}
+	if tracks[0].Title != "first.mp3" || tracks[2].Title != "second.mp3" || tracks[3].Title != "third.mp3" {
+		t.Fatalf("probe results were not assigned to their original tracks: %+v", tracks)
+	}
+	if tracks[1].Compatibility.Status != "UNKNOWN" {
+		t.Fatalf("LRC entry should not be probed: %+v", tracks[1])
+	}
+}
+
+func TestScanSingleTrackRejectsSymlinkAndUnsupportedFile(t *testing.T) {
+	root := t.TempDir()
+	unsupported := filepath.Join(root, "notes.txt")
+	if err := os.WriteFile(unsupported, []byte("notes"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := scanSingleTrack(unsupported); err == nil {
+		t.Fatal("expected unsupported file extension to be rejected")
+	}
+	symlink := filepath.Join(root, "linked.mp3")
+	if err := os.Symlink(unsupported, symlink); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	if _, err := scanSingleTrack(symlink); err == nil {
+		t.Fatal("expected symlink input to be rejected")
 	}
 }

@@ -61,19 +61,9 @@ func ExtractLyrics(root string, apply bool) error {
 }
 
 func LookupLyrics(audioPath string, apply bool) error {
-	scan, err := Scan(filepath.Dir(audioPath))
+	track, err := scanSingleTrack(audioPath)
 	if err != nil {
 		return err
-	}
-	var track *Track
-	for i := range scan.Tracks {
-		if filepath.Clean(scan.Tracks[i].Path) == filepath.Clean(audioPath) {
-			track = &scan.Tracks[i]
-			break
-		}
-	}
-	if track == nil {
-		return fmt.Errorf("audio file not found in scan: %s", audioPath)
 	}
 	title := track.Title
 	if title == "" {
@@ -114,11 +104,40 @@ func LookupLyrics(audioPath string, apply bool) error {
 	} else if !os.IsNotExist(err) {
 		return err
 	}
+
 	if err := writeLyrics(sidecar, lyrics); err != nil {
 		return err
 	}
 	fmt.Printf("Wrote %s\n", sidecar)
 	return nil
+}
+
+func scanSingleTrack(path string) (Track, error) {
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return Track{}, err
+	}
+	info, err := os.Lstat(absolute)
+	if err != nil {
+		return Track{}, err
+	}
+	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+		return Track{}, fmt.Errorf("audio path must be a regular, non-symlink file")
+	}
+	extension := strings.ToLower(filepath.Ext(absolute))
+	if !supportedExtensions[extension] || extension == ".lrc" || extension == ".cue" {
+		return Track{}, fmt.Errorf("unsupported audio file extension %q", extension)
+	}
+	track := Track{
+		Path: absolute, RelativePath: filepath.Base(absolute), Filename: filepath.Base(absolute),
+		Extension: extension, SizeBytes: info.Size(), Tags: map[string]string{},
+		Compatibility: Compatibility{Status: "UNKNOWN"},
+	}
+	data, err := probe(absolute)
+	if err != nil {
+		return Track{}, err
+	}
+	return mergeProbe(track, data), nil
 }
 
 func lookupLRCLib(title, artist, album string, duration int) (lyricsRecord, error) {

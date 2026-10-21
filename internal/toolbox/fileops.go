@@ -289,7 +289,7 @@ func Cleanup(root string, apply bool) (CleanupResult, error) {
 		return CleanupResult{}, fmt.Errorf("%s is not a directory", root)
 	}
 	result := CleanupResult{Paths: []string{}}
-	var emptyDirs []string
+	var directories []string
 	err = filepath.WalkDir(rootAbs, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return nil
@@ -301,6 +301,7 @@ func Cleanup(root string, apply bool) (CleanupResult, error) {
 			if isSystemFolder(entry.Name()) {
 				return filepath.SkipDir
 			}
+			directories = append(directories, path)
 			return nil
 		}
 		name := strings.ToLower(entry.Name())
@@ -323,22 +324,10 @@ func Cleanup(root string, apply bool) (CleanupResult, error) {
 	if !apply {
 		return result, nil
 	}
-	err = filepath.WalkDir(rootAbs, func(path string, entry os.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return nil
-		}
-		if path != rootAbs && entry.IsDir() && !isSystemFolder(entry.Name()) {
-			emptyDirs = append(emptyDirs, path)
-		}
-		return nil
-	})
-	if err != nil {
-		return result, err
-	}
-	for i := len(emptyDirs) - 1; i >= 0; i-- {
-		if err := os.Remove(emptyDirs[i]); err == nil {
+	for i := len(directories) - 1; i >= 0; i-- {
+		if err := os.Remove(directories[i]); err == nil {
 			result.Directories++
-			result.Paths = append(result.Paths, emptyDirs[i])
+			result.Paths = append(result.Paths, directories[i])
 		} else if !os.IsNotExist(err) && !isNotEmpty(err) {
 			return result, err
 		}

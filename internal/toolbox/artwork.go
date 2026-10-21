@@ -35,6 +35,10 @@ func InspectArtwork(root string) ([]ArtworkResult, error) {
 	if err != nil {
 		return nil, err
 	}
+	return inspectArtwork(scan)
+}
+
+func inspectArtwork(scan ScanResult) ([]ArtworkResult, error) {
 	results := make([]ArtworkResult, 0)
 	for _, track := range scan.Tracks {
 		if track.Extension == ".lrc" || track.Extension == ".cue" {
@@ -71,7 +75,11 @@ func InspectArtwork(root string) ([]ArtworkResult, error) {
 }
 
 func FixArtwork(root string, apply bool, backupDir string) ([]ArtworkResult, error) {
-	results, err := InspectArtwork(root)
+	scan, err := Scan(root)
+	if err != nil {
+		return nil, err
+	}
+	results, err := inspectArtwork(scan)
 	if err != nil {
 		return nil, err
 	}
@@ -92,10 +100,6 @@ func FixArtwork(root string, apply bool, backupDir string) ([]ArtworkResult, err
 	ffmpeg, err := exec.LookPath("ffmpeg")
 	if err != nil {
 		return nil, fmt.Errorf("ffmpeg is required to fix embedded artwork")
-	}
-	scan, err := Scan(rootAbs)
-	if err != nil {
-		return nil, err
 	}
 	tracks := make(map[string]Track, len(scan.Tracks))
 	for _, track := range scan.Tracks {
