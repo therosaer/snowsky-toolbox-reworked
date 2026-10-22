@@ -1,6 +1,6 @@
 ---
 name: Bug report
-description: Create a report to help us improve
+description: Report a problem with the Snowsky Echo Mini Toolbox
 labels:
   - triage
 
@@ -8,35 +8,37 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thank you for reporting a bug problem with Snowsky Echo Mini Toolbox.
+        Thanks for helping improve the Snowsky Echo Mini Toolbox.
 
-        Pleas ensure you have the latest version of Snowsky Echo Mini Toolbox installed.
-        You can find the latest version in the [releases page](https://github.com/silent-sphinx/snowsky-echo-mini-toolbox/releases).
-        If the issue still occurs, please report the issue.
-
-        If your bug report is about a incompatible file not marked as incompatible by the program, please submit a file incompatibility report.
+        The Go CLI is currently built from source; there are no Go CLI release binaries. Please include the commit you built, or the repository version if known. For issues with the older desktop app, identify its release.
 
   - type: input
     id: version
     attributes:
-      label: Snowsky Echo Mini Toolbox version
-      description: Enter the complete Snowsky Echo Mini Toolbox version where the issue occurs, this can be found in the top-left corner next to the title, or in the bottom right corner for versions > 2.0.0.
-      placeholder: v2.0.0
+      label: Commit or app version
+      description: Enter the Git commit hash used to build the CLI, or the desktop app release version.
+      placeholder: commit hash or release tag
     validations:
       required: true
+
+  - type: input
+    id: go-version
+    attributes:
+      label: Go version
+      description: Run `go version` if the issue affects the Go CLI.
+      placeholder: go1.24.0
 
   - type: dropdown
     id: operating-system
     attributes:
-      label: Operating System
-      description: Select the operating system of the device where the issue occurs.
+      label: Operating system
       options:
         - Windows (x64)
         - Windows (arm64)
         - Linux (x64)
         - Linux (arm64)
-        - MacOS (x64)
-        - MacOS (arm64)
+        - macOS (x64)
+        - macOS (arm64)
         - Other
     validations:
       required: true
@@ -44,18 +46,17 @@ body:
   - type: dropdown
     id: feature-affected
     attributes:
-      label: Feature Affected
-      description: Select the feature affected by the issue.
+      label: Command or feature affected
       options:
-        - Device information
-        - Music Browser
-        - Music Compatibility
-        - File Rename
-        - Backup & Restore
-        - Lyrics Manager
-        - Album Art Manager
-        - File Cleanup
+        - Scan and compatibility
+        - Backup, copy, or move
+        - Cleanup or rename
+        - Audio conversion
+        - Metadata
+        - Artwork
+        - Lyrics
         - Workflows
+        - Older desktop app
         - Other
     validations:
       required: true
@@ -63,9 +64,8 @@ body:
   - type: textarea
     id: description
     attributes:
-      label: Describe the bug
-      description: Clearly describe what is happening and its impact.
-      placeholder: Describe the problem you encountered.
+      label: Describe the problem
+      description: Include what happened and its impact.
     validations:
       required: true
 
@@ -73,12 +73,10 @@ body:
     id: reproduction-steps
     attributes:
       label: Steps to reproduce
-      description: Provide the sequence of steps that consistently reproduces the issue.
+      description: Include the command and flags used. Redact private paths and personal information.
       placeholder: |
-        1. Go to ...
-        2. Click on ...
-        3. Enter ...
-        4. Observe ...
+        1. Run ...
+        2. Observe ...
     validations:
       required: true
 
@@ -86,7 +84,6 @@ body:
     id: expected-behavior
     attributes:
       label: Expected behavior
-      description: Describe what you expected to happen.
     validations:
       required: true
 
@@ -94,17 +91,5 @@ body:
     id: additional-context
     attributes:
       label: Additional context
-      description: Include any other details that may help diagnose the issue.
-
-  - type: textarea
-    id: screenshots
-    attributes:
-      label: Screenshots or screen recordings
-      description: Drag and drop any relevant screenshots or recordings here.
-
-  - type: textarea
-    id: logs
-    attributes:
-      label: Relevant log output
-      description: Paste relevant, redacted log output. Remove any sensitive information.
+      description: Include relevant FFmpeg/FFprobe versions and redacted output. Do not upload private or copyrighted media.
       render: shell

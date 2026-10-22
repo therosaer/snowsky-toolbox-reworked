@@ -1,38 +1,15 @@
 # Security Policy
 
-## Supported Versions
+## Supported versions
 
-The table below shows which versions of this project are currently receiving security updates.
+The Go CLI is currently distributed from source and has no versioned release binaries. Security fixes are made on the current development branch. The older Python desktop application is retained in this repository; report its security issues here as well, including the affected commit or release.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| latest  | :white_check_mark: |
-| < latest| :x:                |
+## Reporting a vulnerability
 
-## Reporting a Vulnerability
+Please do not report security vulnerabilities in a public issue. Use GitHub's [private vulnerability reporting](https://github.com/therosaer/snowsky-toolbox-reworked/security/advisories/new) feature (repository Security tab → Report a vulnerability).
 
-If you discover a security vulnerability in this project, please **do not open a public issue**.
-
-Instead, report it privately using one of the following methods:
-
-- **Preferred:** Use GitHub's [private vulnerability reporting](https://github.com/silent-sphinx/snowsky-echo-mini-toolbox/security/advisories/new) feature (Security tab → "Report a vulnerability").
-
-Please include as much of the following as you can:
-
-- A description of the vulnerability and its potential impact
-- Steps to reproduce the issue
-- Any relevant logs, screenshots, or proof-of-concept code
-- The version/commit affected
-
-## What to Expect
-
-- You'll receive an acknowledgment within **5 business days**.
-- We'll investigate and aim to provide an initial assessment within **10 business days**.
-- Once a fix is ready, we'll coordinate on disclosure timing with you before making details public.
-- Credit will be given to reporters in the release notes, unless you prefer to remain anonymous.
+Include the affected commit or release, a description of the potential impact, and steps to reproduce where safe. Redact personal information, credentials, and private media paths from logs or examples.
 
 ## Scope
 
-This policy covers the code in this repository. It does not cover third-party dependencies — please report those issues to the respective upstream projects.
-
-Thank you for helping keep this project and its users safe.
+This policy covers code in this repository. Third-party dependencies are maintained by their respective upstream projects.

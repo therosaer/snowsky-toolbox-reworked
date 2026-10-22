@@ -1,6 +1,6 @@
 ---
-name: Incompatible Music File Report
-description: Create a report to help us improve incompatible file detection
+name: Incompatible music file report
+description: Report an incorrect or unclear compatibility result
 labels:
   - triage
 
@@ -8,66 +8,61 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thank you for reporting a bug problem with Snowsky Echo Mini Toolbox.
+        Use this form when `snowsky scan` reports a track as compatible even though it does not work on the device, or when a compatibility result appears incorrect.
 
-        Pleas ensure you have the latest version of Snowsky Echo Mini Toolbox installed.
-        You can find the latest version in the [releases page](https://github.com/silent-sphinx/snowsky-echo-mini-toolbox/releases).
-        If the issue still occurs, please report the issue.
+        Please do not attach or link to copyrighted audio. A sanitized FFprobe summary is usually enough; remove personal paths and private metadata before posting.
 
   - type: input
     id: version
     attributes:
-      label: Snowsky Echo Mini Toolbox version
-      description: Enter the complete Snowsky Echo Mini Toolbox version where the issue occurs, this can be found in the top-left corner next to the title, or in the bottom right corner for versions > 2.0.0.
-      placeholder: v2.0.0
+      label: CLI commit or version
+      description: Enter the Git commit hash used to build the CLI.
+      placeholder: commit hash
     validations:
       required: true
 
   - type: dropdown
     id: operating-system
     attributes:
-      label: Operating System
-      description: Select the operating system of the device where the issue occurs.
+      label: Operating system
       options:
         - Windows (x64)
         - Windows (arm64)
         - Linux (x64)
         - Linux (arm64)
-        - MacOS (x64)
-        - MacOS (arm64)
+        - macOS (x64)
+        - macOS (arm64)
         - Other
     validations:
       required: true
 
-  - type: textarea
-    id: description
+  - type: input
+    id: scan-result
     attributes:
-      label: Describe the bug
-      description: Clearly describe what is happening and its impact.
-      placeholder: Describe the problem you encountered.
+      label: Scan result
+      description: Paste the status and reason reported by `snowsky scan`, with private paths removed.
+      placeholder: COMPATIBLE — ...
     validations:
       required: true
 
   - type: textarea
-    id: screenshots
+    id: file-details
     attributes:
-      label: Screenshots or screen recordings
-      description: Drag and drop any relevant screenshots or recordings here.
+      label: Sanitized file details
+      description: Include the extension, codec, sample rate, bit depth, channel count, and a sanitized FFprobe summary if available. Do not attach the audio file.
+      render: shell
+    validations:
+      required: true
 
   - type: textarea
-    id: debug-message
+    id: device-result
     attributes:
-      label: Audio File Debug Message
-      description: Locate your music file using the 'File Browser' tab, right-click on the file and select 'debug', paste the output of the launched window here.
-
-  - type: textarea
-    id: music-file
-    attributes:
-      label: Incompatible Music File
-      description: Drag and drop any incompatible audio files, or provide a link to a cloud-storage service like Google Drive.
+      label: Device behavior
+      description: Describe what happened on the Snowsky Echo Mini, including firmware version if known.
+    validations:
+      required: true
 
   - type: textarea
     id: additional-context
     attributes:
       label: Additional context
-      description: Include any other details that may help diagnose the issue.
