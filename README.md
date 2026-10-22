@@ -1,8 +1,8 @@
 # Snowsky Toolbox Reworked
 
-A Go command-line toolbox for checking and preparing music libraries for the Snowsky Echo Mini. It can inspect audio compatibility, convert files, manage metadata and artwork, handle lyrics, and perform common library file operations. Mainly made this because I didn't like the GUI of the original app, this has both a reworked GUI and CLI.
+A Go command-line toolbox for checking and preparing music libraries for the Snowsky Echo Mini. It can inspect audio compatibility, convert files, manage metadata and artwork, handle lyrics, and perform common library file operations.
 
-> **Project status:** The Go CLI is a source-built application; this repository does not currently publish Go CLI release binaries. The repository also retains an older Python/PySide6 desktop application. The existing GitHub release workflow packages that desktop app, not the Go CLI.
+> **Project status:** The Go CLI is source-built. GitHub releases currently package the desktop application, not the CLI.
 
 This is an unofficial community project and is not affiliated with or endorsed by Snowsky or its manufacturer.
 
@@ -119,26 +119,13 @@ Run the workflow in preview mode first:
 ./snowsky workflow run --apply workflow.json /path/to/music
 ```
 
-The workflow runner is a limited CLI implementation, not a complete executor for every workflow action available in the older desktop app. Unsupported step types stop with an error.
+Unsupported step types stop with an error.
 
 ## Compatibility
 
 The CLI checks supported containers/codecs, selected sample-rate and bit-depth limits, multichannel WAV, and filename cases known to display poorly. It does not classify every file type a device may encounter, and it does not currently check metadata-tag ordering as part of `scan`.
 
 See [COMPATIBILITY.md](COMPATIBILITY.md) for the exact CLI checks and their limitations. The [device specification notes](device_spec/SNOWSKY-FIRMWARE.md) record broader firmware research and should be treated as research findings, not as a complete description of current CLI behavior.
-
-## Older desktop application
-
-The Python/PySide6 desktop application remains in the source tree (`main.py`, `src/`). Its source setup and platform release packaging are separate from the Go CLI. For the desktop app, use Python 3.12 or newer, install `requirements.txt`, and provide `ffmpeg`/`ffprobe` on `PATH` when running from source:
-
-```sh
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python main.py
-```
-
-On Windows PowerShell, activate with `.\.venv\Scripts\Activate.ps1` and run `python main.py`.
 
 ## Contributing
 

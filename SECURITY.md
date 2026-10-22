@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-The Go CLI is currently distributed from source and has no versioned release binaries. Security fixes are made on the current development branch. The older Python desktop application is retained in this repository; report its security issues here as well, including the affected commit or release.
+The Go CLI is source-built. Security fixes are made on the current development branch.
 
 ## Reporting a vulnerability
 
