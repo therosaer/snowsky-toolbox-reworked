@@ -1,6 +1,6 @@
-# Snowsky Echo Mini Toolbox
+# Snowsky Toolbox Reworked
 
-A Go command-line toolbox for checking and preparing music libraries for the Snowsky Echo Mini. It can inspect audio compatibility, convert files, manage metadata and artwork, handle lyrics, and perform common library file operations.
+A Go command-line toolbox for checking and preparing music libraries for the Snowsky Echo Mini. It can inspect audio compatibility, convert files, manage metadata and artwork, handle lyrics, and perform common library file operations. Mainly made this because I didn't like the GUI of the original app, this has both a reworked GUI and CLI.
 
 > **Project status:** The Go CLI is a source-built application; this repository does not currently publish Go CLI release binaries. The repository also retains an older Python/PySide6 desktop application. The existing GitHub release workflow packages that desktop app, not the Go CLI.
 
